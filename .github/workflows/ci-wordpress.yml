@@ -1,4 +1,4 @@
-name: CI – WordPress Smoke Tests (Final Clean Run)
+name: CI – WordPress Smoke Tests (Stable)
 
 permissions:
   contents: read
@@ -44,23 +44,37 @@ jobs:
             -e WORDPRESS_DB_NAME=wp \
             -p 8080:80 \
             wordpress:php8.2-apache
-          for i in {1..60}; do
-            curl -sSf http://localhost:8080 >/dev/null && break || sleep 2
-          done
 
-      - name: Install WP-CLI in container
+      - name: Prepare WordPress files (stop Apache, clean, unzip latest)
         run: |
-          docker exec wp bash -lc "curl -sS -o /usr/local/bin/wp https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar && chmod +x /usr/local/bin/wp"
-
-      # Always fresh: wipe target dir so download never fails; then install WP
-      - name: Download, configure and install WordPress (fresh each run, OS unzip)
-        run: |
+          # Stop Apache so docroot is not busy
+          docker exec wp bash -lc "apache2ctl -k stop || true"
+          # Ensure tools exist
+          docker exec wp bash -lc "apt-get update && apt-get install -y curl unzip >/dev/null"
+          # Clean docroot and install WP via OS unzip (avoids phar memory issues)
           docker exec wp bash -lc "rm -rf /var/www/html/*"
-          docker exec wp bash -lc "apt-get update && apt-get install -y curl unzip"
-          docker exec wp bash -lc "curl -sSL https://wordpress.org/latest.zip -o /tmp/wp.zip && unzip -q /tmp/wp.zip -d /var/www && rm -rf /var/www/html && mv /var/www/wordpress /var/www/html"
+          docker exec wp bash -lc "curl -sSL https://wordpress.org/latest.zip -o /tmp/wp.zip"
+          docker exec wp bash -lc "unzip -q /tmp/wp.zip -d /var/www && rm -rf /var/www/html && mv /var/www/wordpress /var/www/html"
+
+      - name: Configure and install WordPress
+        run: |
+          # Create wp-config and DB, then install core
+          docker exec wp bash -lc "curl -sS -o /usr/local/bin/wp https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar && chmod +x /usr/local/bin/wp"
           docker exec wp bash -lc "wp config create --dbname=wp --dbuser=wp --dbpass=wp --dbhost=127.0.0.1:3306 --path=/var/www/html --allow-root"
           docker exec wp bash -lc "wp db create --path=/var/www/html --allow-root || true"
           docker exec wp bash -lc "wp core install --url=http://localhost:8080 --title='CI Site' --admin_user=admin --admin_password=admin --admin_email=admin@example.com --path=/var/www/html --allow-root --skip-email"
+
+      - name: Start Apache and wait for HTTP 200/302
+        run: |
+          docker exec wp bash -lc "apache2ctl -k start"
+          for i in {1..120}; do
+            code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/ || true)
+            if [ "$code" = "200" ] || [ "$code" = "302" ]; then
+              echo "Apache ready ($code)"; break
+            fi
+            echo "Waiting for Apache... HTTP $code"
+            sleep 1
+          done
 
       - name: Copy theme into container (repo root -> ai-news-hub)
         run: |
@@ -112,5 +126,5 @@ jobs:
 
       - name: PHP lint (theme)
         run: |
-          sudo apt-get update && sudo apt-get install -y php-cli
+          sudo apt-get update && sudo apt-get install -y php-cli >/dev/null
           find . -name "*.php" -print0 | xargs -0 -n1 -P4 php -l
