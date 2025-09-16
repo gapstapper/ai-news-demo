@@ -1,4 +1,4 @@
-name: CI – WordPress Smoke Tests (single container)
+name: CI – WordPress Smoke Tests (Stable)
 
 permissions:
   contents: read
@@ -22,54 +22,63 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Start WordPress (Bitnami all-in-one)
+      - name: Create Docker network
+        run: docker network create wpnet
+
+      - name: Start MySQL (sibling container on wpnet)
+        run: |
+          docker run -d --name mysql \
+            --network wpnet \
+            -e MYSQL_DATABASE=wp \
+            -e MYSQL_USER=wp \
+            -e MYSQL_PASSWORD=wp \
+            -e MYSQL_ROOT_PASSWORD=root \
+            -p 3306:3306 \
+            mysql:8
+          # Wait for native readiness
+          for i in {1..60}; do
+            docker exec mysql sh -lc 'mysqladmin ping -h 127.0.0.1 -uroot -proot >/dev/null 2>&1' && break
+            echo "Waiting for MySQL container..."; sleep 2
+          done
+
+      - name: Start WordPress (php-apache) on same network
         run: |
           docker run -d --name wp \
-            -e WORDPRESS_USERNAME=admin \
-            -e WORDPRESS_PASSWORD=admin \
-            -e WORDPRESS_EMAIL=admin@example.com \
-            -e WORDPRESS_BLOG_NAME="CI Site" \
-            -e MARIADB_HOST=localhost \
-            -e ALLOW_EMPTY_PASSWORD=yes \
-            -p 8080:8080 \
-            -p 8443:8443 \
-            bitnami/wordpress:latest
-          # Wait for the bundled DB and WP to initialize
-          for i in {1..120}; do
-            code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/ || true)
-            if [ "$code" = "200" ] || [ "$code" = "302" ]; then
-              echo "WordPress UI ready ($code)"; break
-            fi
-            echo "Waiting for WordPress service... HTTP $code"
-            sleep 2
-          done
+            --network wpnet \
+            -e WORDPRESS_DB_HOST=mysql:3306 \
+            -e WORDPRESS_DB_USER=wp \
+            -e WORDPRESS_DB_PASSWORD=wp \
+            -e WORDPRESS_DB_NAME=wp \
+            -p 8080:80 \
+            wordpress:php8.2-apache
 
       - name: Prepare WordPress files (host extract + docker cp)
         run: |
-          # Put a clean core tree into the app directory used by Bitnami
+          docker stop wp
           curl -sSL https://wordpress.org/latest.zip -o /tmp/wp.zip
           rm -rf /tmp/wordpress && unzip -q /tmp/wp.zip -d /tmp
-          docker exec wp bash -lc 'rm -rf /bitnami/wordpress/*'
-          docker cp /tmp/wordpress/. wp:/bitnami/wordpress/
+          docker cp /tmp/wordpress/. wp:/var/www/html/
+          docker start wp
 
-      - name: Install WP-CLI and configure (single container)
+      - name: Configure and install WordPress (single in-container shell)
         run: |
-          # Install wp-cli inside the same container
           curl -sS -L https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar -o /tmp/wp-cli.phar
           docker cp /tmp/wp-cli.phar wp:/usr/local/bin/wp
           docker exec wp bash -lc 'chmod +x /usr/local/bin/wp && /usr/local/bin/wp --version || true'
 
-          # Single-shell idempotent setup
           docker exec wp bash -lc '
             set -e
-            WP="/usr/local/bin/wp --allow-root --path=/bitnami/wordpress"
+            # Ping MySQL by container name on the same network
+            for i in {1..60}; do
+              mysqladmin ping -h mysql -P 3306 -u wp -pwp >/dev/null 2>&1 && break
+              echo "Waiting for MySQL (mysql:3306)..."; sleep 2
+            done
 
-            # The Bitnami image already provisions wp-config and DB.
-            # Recreate config for consistency, using internal DB on localhost.
-            rm -f /bitnami/wordpress/wp-config.php
-            $WP config create --dbname=bitnami_wordpress --dbuser=bn_wordpress --dbpass="$(cat /opt/bitnami/wordpress/wp-config.php 2>/dev/null | grep DB_PASSWORD || true)" --dbhost=localhost:3306 || true
+            WP="/usr/local/bin/wp --allow-root --path=/var/www/html"
 
-            # Ensure install
+            rm -f /var/www/html/wp-config.php
+            $WP config create --dbname=wp --dbuser=wp --dbpass=wp --dbhost=mysql:3306
+            $WP db create || true
             $WP core is-installed || $WP core install \
               --url=http://localhost:8080 \
               --title="CI Site" \
@@ -79,17 +88,29 @@ jobs:
               --skip-email
           '
 
+      - name: Start Apache and wait for HTTP 200/302
+        run: |
+          docker exec wp bash -lc 'apache2ctl -k start'
+          for i in {1..120}; do
+            code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/ || true)
+            if [ "$code" = "200" ] || [ "$code" = "302" ]; then
+              echo "Apache ready ($code)"; break
+            fi
+            echo "Waiting for Apache... HTTP $code"
+            sleep 1
+          done
+
       - name: Copy theme into container (repo root -> ai-news-hub)
         run: |
-          docker exec wp bash -lc 'rm -rf /bitnami/wordpress/wp-content/themes/ai-news-hub'
-          docker cp . wp:/bitnami/wordpress/wp-content/themes/ai-news-hub
+          docker exec wp bash -lc 'rm -rf /var/www/html/wp-content/themes/ai-news-hub'
+          docker cp . wp:/var/www/html/wp-content/themes/ai-news-hub
 
       - name: Activate theme
-        run: docker exec wp /usr/local/bin/wp theme activate ai-news-hub --allow-root --path=/bitnami/wordpress
+        run: docker exec wp /usr/local/bin/wp theme activate ai-news-hub --allow-root --path=/var/www/html
 
       - name: Register Articles CPT via mu-plugin
         run: |
-          docker exec wp /bin/bash -lc 'mkdir -p /bitnami/wordpress/wp-content/mu-plugins && cat >/bitnami/wordpress/wp-content/mu-plugins/ai-news-hub-cpt.php <<PHP
+          docker exec wp /bin/bash -lc 'mkdir -p /var/www/html/wp-content/mu-plugins && cat >/var/www/html/wp-content/mu-plugins/ai-news-hub-cpt.php <<PHP
           <?php
           add_action("init", function () {
             register_post_type("article", array(
@@ -107,8 +128,8 @@ jobs:
 
       - name: Flush permalinks
         run: |
-          docker exec wp /usr/local/bin/wp rewrite structure '/%postname%/' --hard --allow-root --path=/bitnami/wordpress
-          docker exec wp /usr/local/bin/wp rewrite flush --hard --allow-root --path=/bitnami/wordpress
+          docker exec wp /usr/local/bin/wp rewrite structure '/%postname%/' --hard --allow-root --path=/var/www/html
+          docker exec wp /usr/local/bin/wp rewrite flush --hard --allow-root --path=/var/www/html
 
       - name: Create sample Article
         run: |
@@ -116,7 +137,7 @@ jobs:
             --post_type=article \
             --post_title="CI Sample" \
             --post_status=publish \
-            --allow-root --path=/bitnami/wordpress
+            --allow-root --path=/var/www/html
 
       - name: Smoke test – homepage
         run: curl -sSf http://localhost:8080 | grep -i "<html"
