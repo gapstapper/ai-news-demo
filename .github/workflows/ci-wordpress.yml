@@ -47,26 +47,18 @@ jobs:
 
       - name: Prepare WordPress files (stop Apache, clean, unzip latest)
         run: |
-          # Stop Apache and kill any leftovers
-          docker exec wp bash -lc "apache2ctl -k stop || true"
-          docker exec wp bash -lc "pkill -TERM apache2 || true; sleep 1; pkill -KILL apache2 || true"
+          # Stop the container to release all file descriptors
+          docker stop wp
 
-          # Non-interactive apt to avoid debconf prompts
-          docker exec -e DEBIAN_FRONTEND=noninteractive wp bash -lc "apt-get update && apt-get install -y -o Dpkg::Options::=--force-confold curl unzip >/dev/null"
+          # Extract WordPress on the host
+          curl -sSL https://wordpress.org/latest.zip -o /tmp/wp.zip
+          rm -rf /tmp/wp && unzip -q /tmp/wp.zip -d /tmp
 
-          # SAFEST CLEANUP: move html aside (bypasses 'resource busy'), then recreate
-          docker exec wp bash -lc "mv /var/www/html /var/www/html_old_$$ || true"
-          docker exec wp bash -lc "mkdir -p /var/www/html"
+          # Replace the container docroot from the host side
+          docker cp /tmp/wordpress/. wp:/var/www/html/
 
-          # Download and extract WordPress using OS unzip
-          docker exec wp bash -lc "curl -sSL https://wordpress.org/latest.zip -o /tmp/wp.zip"
-          docker exec wp bash -lc "unzip -q /tmp/wp.zip -d /var/www"
-
-          # Move new wordpress into place atomically
-          docker exec wp bash -lc "rm -rf /var/www/html && mv /var/www/wordpress /var/www/html"
-
-          # Cleanup old directory (after swap)
-          docker exec wp bash -lc "rm -rf /var/www/html_old_* || true"
+          # Start the container again
+          docker start wp
 
 
 
