@@ -16,10 +16,18 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      # Your theme lives at ./ai-news-hub
-      - name: Set vars
-        run: echo "THEME_DIR=ai-news-hub" >> $GITHUB_ENV
+      
+      - name: Locate theme directory
+        id: find_theme
+        run: |
+          # Find the first style.css in the repo
+          FILE=$(git ls-files | grep -E '/style\.css$' | head -n1)
+          if [ -z "$FILE" ]; then
+            echo "style.css not found in repo"; exit 1
+          fi
+          DIR=$(dirname "$FILE")
+          echo "THEME_DIR=$DIR" >> $GITHUB_ENV
+          echo "Found theme at $DIR"
 
       - name: Validate theme header
         run: |
