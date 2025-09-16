@@ -16,45 +16,32 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      
-      - name: Locate theme directory
-        id: find_theme
-        run: |
-          # Find the first style.css in the repo
-          FILE=$(git ls-files | grep -E '/style\.css$' | head -n1)
-          if [ -z "$FILE" ]; then
-            echo "style.css not found in repo"; exit 1
-          fi
-          DIR=$(dirname "$FILE")
-          echo "THEME_DIR=$DIR" >> $GITHUB_ENV
-          echo "Found theme at $DIR"
 
+      # Verify style.css exists in the repo root and has a Theme header
       - name: Validate theme header
         run: |
-          test -f "$THEME_DIR/style.css"
-          grep -E "Theme Name:" "$THEME_DIR/style.css"
+          test -f "style.css"
+          grep -E "Theme Name:" "style.css"
 
+      # Create a zip of the theme from the repo root
       - name: Create ZIP
         run: |
-          cd "$THEME_DIR"
-          zip -r ../ai-news-hub-theme.zip .
-          cd -
-
+          zip -r theme.zip .
+      
       - name: Checksums
-        run: sha256sum ai-news-hub-theme.zip | tee ai-news-hub-theme.zip.sha256
+        run: sha256sum theme.zip | tee theme.zip.sha256
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ai-news-hub-theme
+          name: theme-build
           path: |
-            ai-news-hub-theme.zip
-            ai-news-hub-theme.zip.sha256
+            theme.zip
+            theme.zip.sha256
 
   release:
     needs: build
     runs-on: ubuntu-latest
-    # Create a GitHub Release when run manually or when a v* tag is pushed
     if: ${{ github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v') }}
     steps:
       - name: Checkout
@@ -63,7 +50,7 @@ jobs:
       - name: Download artifact
         uses: actions/download-artifact@v4
         with:
-          name: ai-news-hub-theme
+          name: theme-build
           path: dist
 
       - name: Create GitHub Release
@@ -73,5 +60,5 @@ jobs:
           name: "AI News Hub Theme ${{ github.event.inputs.version || github.ref_name }}"
           generate_release_notes: true
           files: |
-            dist/ai-news-hub-theme.zip
-            dist/ai-news-hub-theme.zip.sha256
+            dist/theme.zip
+            dist/theme.zip.sha256
