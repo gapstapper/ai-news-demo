@@ -1,0 +1,30 @@
+name: Deploy Theme via SFTP
+
+permissions:
+  contents: read
+
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - "**/*.php"
+      - "style.css"
+      - ".github/workflows/deploy-sftp.yml"
+  workflow_dispatch: {}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Upload via SFTP
+        uses: wlixcc/SFTP-Deploy-Action@v1.2.4
+        with:
+          server: ${{ secrets.SFTP_HOST }}
+          username: ${{ secrets.SFTP_USER }}
+          password: ${{ secrets.SFTP_PASS }}
+          remote_path: "/var/www/html/wp-content/themes/ai-news-hub"
+          local_path: "."
+          delete_remote_files: false

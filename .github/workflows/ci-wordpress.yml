@@ -1,0 +1,126 @@
+name: CI – WordPress Theme Smoke Tests
+
+permissions:
+  contents: read
+
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - "**/*.php"
+      - "style.css"
+      - ".github/workflows/ci-wordpress.yml"
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8
+        env:
+          MYSQL_DATABASE: wp
+          MYSQL_USER: wp
+          MYSQL_PASSWORD: wp
+          MYSQL_ROOT_PASSWORD: root
+        ports: [ "3306:3306" ]
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-interval=5s --health-timeout=5s --health-retries=10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Debug – list repo root
+        run: |
+          pwd
+          ls -la
+
+      - name: Start WordPress (php-apache)
+        run: |
+          docker run -d --name wp \
+            -e WORDPRESS_DB_HOST=127.0.0.1:3306 \
+            -e WORDPRESS_DB_USER=wp \
+            -e WORDPRESS_DB_PASSWORD=wp \
+            -e WORDPRESS_DB_NAME=wp \
+            -p 8080:80 \
+            wordpress:php8.2-apache
+          for i in {1..60}; do
+            curl -sSf http://localhost:8080 >/dev/null && break || sleep 2
+          done
+
+      - name: Install WP-CLI
+        run: |
+          curl -sS -o wp https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar
+          chmod +x wp
+          sudo mv wp /usr/local/bin/wp
+
+      - name: WP core install
+        run: |
+          wp core install \
+            --url=http://localhost:8080 \
+            --title="CI Site" \
+            --admin_user=admin \
+            --admin_password=admin \
+            --admin_email=admin@example.com \
+            --path=/var/www/html \
+            --allow-root \
+            --skip-email
+
+      # Copy your theme (repo root) into the container theme dir
+      - name: Copy theme into container
+        run: |
+          docker cp . wp:/var/www/html/wp-content/themes/ai-news-hub
+
+      - name: Activate theme
+        run: |
+          docker exec wp wp theme activate ai-news-hub --allow-root --path=/var/www/html
+
+      # Register the CPT via a small mu-plugin so tests don't rely on theme PHP
+      - name: Register CPT via mu-plugin
+        run: |
+          docker exec wp /bin/bash -lc 'mkdir -p /var/www/html/wp-content/mu-plugins && cat >/var/www/html/wp-content/mu-plugins/ai-news-hub-cpt.php <<PHP
+          <?php
+          add_action("init", function () {
+            register_post_type("article", array(
+              "labels" => array("name" => "Articles","singular_name" => "Article"),
+              "public" => true,
+              "has_archive" => true,
+              "show_in_rest" => true,
+              "rest_base" => "articles",
+              "supports" => array("title","editor","excerpt","thumbnail"),
+              "taxonomies" => array("post_tag"),
+              "rewrite" => array("slug" => "articles"),
+            ));
+          });
+          PHP'
+
+      - name: Flush permalinks
+        run: |
+          docker exec wp wp rewrite structure '/%postname%/' --hard --allow-root --path=/var/www/html
+          docker exec wp wp rewrite flush --hard --allow-root --path=/var/www/html
+
+      - name: Create sample Article
+        run: |
+          docker exec wp wp post create \
+            --post_type=article \
+            --post_title="CI Sample" \
+            --post_status=publish \
+            --allow-root --path=/var/www/html
+
+      - name: Smoke test – homepage
+        run: curl -sSf http://localhost:8080 | grep -i "<html"
+
+      - name: Smoke test – Articles archive
+        run: curl -sSf http://localhost:8080/articles/ | grep -i "Articles"
+
+      - name: Smoke test – REST
+        run: curl -sSf http://localhost:8080/wp-json/wp/v2/articles | grep -i "CI Sample"
+
+      - name: PHP lint (theme)
+        run: |
+          sudo apt-get update && sudo apt-get install -y php-cli
+          find . -name "*.php" -print0 | xargs -0 -n1 -P4 php -l
