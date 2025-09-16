@@ -41,4 +41,106 @@ jobs:
             -e WORDPRESS_DB_HOST=127.0.0.1:3306 \
             -e WORDPRESS_DB_USER=wp \
             -e WORDPRESS_DB_PASSWORD=wp \
-            -e WORDPRESS_DB_NAME=wp
+            -e WORDPRESS_DB_NAME=wp \
+            -p 8080:80 \
+            wordpress:php8.2-apache
+
+      - name: Prepare WordPress files (host extract + docker cp)
+        run: |
+          # 1) Stop container to release any open file descriptors
+          docker stop wp
+
+          # 2) Download and extract WordPress on the host
+          curl -sSL https://wordpress.org/latest.zip -o /tmp/wp.zip
+          rm -rf /tmp/wordpress && unzip -q /tmp/wp.zip -d /tmp
+
+          # 3) Replace container docroot from the host (clean copy)
+          docker cp /tmp/wordpress/. wp:/var/www/html/
+
+          # 4) Start the container again
+          docker start wp
+
+      - name: Configure and install WordPress (idempotent)
+        run: |
+          # Install WP-CLI inside the container
+          docker exec wp bash -lc "curl -sS -o /usr/local/bin/wp https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar && chmod +x /usr/local/bin/wp"
+
+          # Wait for MySQL to accept connections before proceeding
+          for i in {1..60}; do
+            docker exec wp bash -lc "mysqladmin ping -h 127.0.0.1 -P 3306 -u wp -pwp >/dev/null 2>&1"
+            if [ $? -eq 0 ]; then echo 'MySQL is ready'; break; fi
+            echo 'Waiting for MySQL...'; sleep 2
+          done
+
+          # Remove any stale config; then create if missing
+          docker exec wp bash -lc "rm -f /var/www/html/wp-config.php"
+          docker exec wp bash -lc "[ -f /var/www/html/wp-config.php ] || wp config create --dbname=wp --dbuser=wp --dbpass=wp --dbhost=127.0.0.1:3306 --path=/var/www/html --allow-root"
+
+          # Create DB if needed and install core only if not installed
+          docker exec wp bash -lc "wp db create --path=/var/www/html --allow-root || true"
+          docker exec wp bash -lc \"wp core is-installed --path=/var/www/html --allow-root || wp core install --url=http://localhost:8080 --title='CI Site' --admin_user=admin --admin_password=admin --admin_email=admin@example.com --path=/var/www/html --allow-root --skip-email\"
+
+      - name: Start Apache and wait for HTTP 200/302
+        run: |
+          docker exec wp bash -lc "apache2ctl -k start"
+          for i in {1..120}; do
+            code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/ || true)
+            if [ "$code" = "200" ] || [ "$code" = "302" ]; then
+              echo "Apache ready ($code)"; break
+            fi
+            echo "Waiting for Apache... HTTP $code"
+            sleep 1
+          done
+
+      - name: Copy theme into container (repo root -> ai-news-hub)
+        run: |
+          docker exec wp bash -lc "rm -rf /var/www/html/wp-content/themes/ai-news-hub"
+          docker cp . wp:/var/www/html/wp-content/themes/ai-news-hub
+
+      - name: Activate theme
+        run: docker exec wp wp theme activate ai-news-hub --allow-root --path=/var/www/html
+
+      - name: Register Articles CPT via mu-plugin
+        run: |
+          docker exec wp /bin/bash -lc 'mkdir -p /var/www/html/wp-content/mu-plugins && cat >/var/www/html/wp-content/mu-plugins/ai-news-hub-cpt.php <<PHP
+          <?php
+          add_action("init", function () {
+            register_post_type("article", array(
+              "labels" => array("name" => "Articles","singular_name" => "Article"),
+              "public" => true,
+              "has_archive" => true,
+              "show_in_rest" => true,
+              "rest_base" => "articles",
+              "supports" => array("title","editor","excerpt","thumbnail"),
+              "taxonomies" => array("post_tag"),
+              "rewrite" => array("slug" => "articles"),
+            ));
+          });
+          PHP'
+
+      - name: Flush permalinks
+        run: |
+          docker exec wp wp rewrite structure '/%postname%/' --hard --allow-root --path=/var/www/html
+          docker exec wp wp rewrite flush --hard --allow-root --path=/var/www/html
+
+      - name: Create sample Article
+        run: |
+          docker exec wp wp post create \
+            --post_type=article \
+            --post_title="CI Sample" \
+            --post_status=publish \
+            --allow-root --path=/var/www/html
+
+      - name: Smoke test – homepage
+        run: curl -sSf http://localhost:8080 | grep -i "<html"
+
+      - name: Smoke test – Articles archive
+        run: curl -sSf http://localhost:8080/articles/ | grep -i "Articles"
+
+      - name: Smoke test – REST
+        run: curl -sSf http://localhost:8080/wp-json/wp/v2/articles | grep -i "CI Sample"
+
+      - name: PHP lint (theme)
+        run: |
+          sudo apt-get update && sudo apt-get install -y php-cli >/dev/null
+          find . -name "*.php" -print0 | xargs -0 -n1 -P4 php -l
