@@ -1,4 +1,4 @@
-name: CI – WordPress Smoke Tests (Final)
+name: CI – WordPress Smoke Tests (Final Clean Run)
 
 permissions:
   contents: read
@@ -44,7 +44,6 @@ jobs:
             -e WORDPRESS_DB_NAME=wp \
             -p 8080:80 \
             wordpress:php8.2-apache
-          # Wait for Apache to respond
           for i in {1..60}; do
             curl -sSf http://localhost:8080 >/dev/null && break || sleep 2
           done
@@ -53,15 +52,14 @@ jobs:
         run: |
           docker exec wp bash -lc "curl -sS -o /usr/local/bin/wp https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar && chmod +x /usr/local/bin/wp"
 
-      - name: Download, configure and install WordPress (idempotent)
+      # Always fresh: wipe target dir so download never fails; then install WP
+      - name: Download, configure and install WordPress (fresh each run)
         run: |
-          # Skip download if core already present
-          docker exec wp bash -lc "wp core is-installed --path=/var/www/html --allow-root >/dev/null 2>&1 || wp core download --path=/var/www/html --allow-root"
-          # Config/DB create: ignore if already done
-          docker exec wp bash -lc "wp config create --dbname=wp --dbuser=wp --dbpass=wp --dbhost=127.0.0.1:3306 --path=/var/www/html --allow-root || true"
+          docker exec wp bash -lc "rm -rf /var/www/html/*"
+          docker exec wp bash -lc "wp core download --path=/var/www/html --allow-root"
+          docker exec wp bash -lc "wp config create --dbname=wp --dbuser=wp --dbpass=wp --dbhost=127.0.0.1:3306 --path=/var/www/html --allow-root"
           docker exec wp bash -lc "wp db create --path=/var/www/html --allow-root || true"
-          # Install only if not installed
-          docker exec wp bash -lc "wp core is-installed --path=/var/www/html --allow-root || wp core install --url=http://localhost:8080 --title='CI Site' --admin_user=admin --admin_password=admin --admin_email=admin@example.com --path=/var/www/html --allow-root --skip-email"
+          docker exec wp bash -lc "wp core install --url=http://localhost:8080 --title='CI Site' --admin_user=admin --admin_password=admin --admin_email=admin@example.com --path=/var/www/html --allow-root --skip-email"
 
       - name: Copy theme into container (repo root -> ai-news-hub)
         run: |
