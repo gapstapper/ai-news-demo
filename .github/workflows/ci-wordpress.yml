@@ -53,10 +53,11 @@ jobs:
           docker exec wp bash -lc "curl -sS -o /usr/local/bin/wp https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar && chmod +x /usr/local/bin/wp"
 
       # Always fresh: wipe target dir so download never fails; then install WP
-      - name: Download, configure and install WordPress (fresh each run)
+      - name: Download, configure and install WordPress (fresh each run, OS unzip)
         run: |
           docker exec wp bash -lc "rm -rf /var/www/html/*"
-          docker exec wp bash -lc "wp core download --path=/var/www/html --allow-root"
+          docker exec wp bash -lc "apt-get update && apt-get install -y curl unzip"
+          docker exec wp bash -lc "curl -sSL https://wordpress.org/latest.zip -o /tmp/wp.zip && unzip -q /tmp/wp.zip -d /var/www && rm -rf /var/www/html && mv /var/www/wordpress /var/www/html"
           docker exec wp bash -lc "wp config create --dbname=wp --dbuser=wp --dbpass=wp --dbhost=127.0.0.1:3306 --path=/var/www/html --allow-root"
           docker exec wp bash -lc "wp db create --path=/var/www/html --allow-root || true"
           docker exec wp bash -lc "wp core install --url=http://localhost:8080 --title='CI Site' --admin_user=admin --admin_password=admin --admin_email=admin@example.com --path=/var/www/html --allow-root --skip-email"
