@@ -62,7 +62,7 @@ jobs:
 
       - name: Configure and install WordPress (idempotent)
         run: |
-          # Install WP-CLI inside the container
+          # Install WP-CLI inside the container (plain URL)
           docker exec wp bash -lc "curl -sS -o /usr/local/bin/wp https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar && chmod +x /usr/local/bin/wp"
 
           # Wait for MySQL to accept connections before proceeding
@@ -76,7 +76,7 @@ jobs:
           docker exec wp bash -lc "rm -f /var/www/html/wp-config.php"
           docker exec wp bash -lc "[ -f /var/www/html/wp-config.php ] || wp config create --dbname=wp --dbuser=wp --dbpass=wp --dbhost=127.0.0.1:3306 --path=/var/www/html --allow-root"
 
-          # Create DB if needed and install core only if not installed
+          # Create DB if needed and install core only if not installed (plain email arg)
           docker exec wp bash -lc "wp db create --path=/var/www/html --allow-root || true"
           docker exec wp bash -lc \"wp core is-installed --path=/var/www/html --allow-root || wp core install --url=http://localhost:8080 --title='CI Site' --admin_user=admin --admin_password=admin --admin_email=admin@example.com --path=/var/www/html --allow-root --skip-email\"
 
