@@ -47,45 +47,42 @@ jobs:
 
       - name: Prepare WordPress files (host extract + docker cp)
         run: |
-          # Stop the container to release file handles
           docker stop wp
-
-          # Download and extract WordPress on the HOST (plain URL)
           curl -sSL https://wordpress.org/latest.zip -o /tmp/wp.zip
           rm -rf /tmp/wordpress && unzip -q /tmp/wp.zip -d /tmp
-
-          # Replace docroot with a clean copy
           docker cp /tmp/wordpress/. wp:/var/www/html/
-
-          # Start container again
           docker start wp
 
-      - name: Configure and install WordPress (idempotent, robust)
+      - name: Configure and install WordPress (single in-container shell)
         run: |
-          # 0) Fetch wp-cli.phar on HOST to avoid YAML/Markdown interference
+          # Download wp-cli on HOST (no Markdown risk) and copy into container
           curl -sS -L https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar -o /tmp/wp-cli.phar
-
-          # 1) Put it in the container and verify
           docker cp /tmp/wp-cli.phar wp:/usr/local/bin/wp
           docker exec wp bash -lc 'chmod +x /usr/local/bin/wp && /usr/local/bin/wp --version || true'
 
-          # 2) Wait for MySQL readiness inside the container
-          for i in {1..60}; do
-            docker exec wp bash -lc 'mysqladmin ping -h 127.0.0.1 -P 3306 -u wp -pwp >/dev/null 2>&1'
-            if [ $? -eq 0 ]; then echo "MySQL ready"; break; fi
-            echo "Waiting for MySQL..."; sleep 2
-          done
+          # Run everything in ONE container shell; define WP ONCE and reuse
+          docker exec wp bash -lc '
+            set -e
+            # Wait for MySQL
+            for i in {1..60}; do
+              mysqladmin ping -h 127.0.0.1 -P 3306 -u wp -pwp >/dev/null 2>&1 && break
+              echo "Waiting for MySQL..."; sleep 2
+            done
 
-          # 3) Helper to always pass --allow-root and the path
-          WP="/usr/local/bin/wp --allow-root --path=/var/www/html"
+            WP="/usr/local/bin/wp --allow-root --path=/var/www/html"
 
-          # 4) Fresh config then create (idempotent)
-          docker exec wp bash -lc 'rm -f /var/www/html/wp-config.php'
-          docker exec wp bash -lc "$WP config create --dbname=wp --dbuser=wp --dbpass=wp --dbhost=127.0.0.1:3306"
-
-          # 5) Create DB if needed and install only if not installed
-          docker exec wp bash -lc "$WP db create || true"
-          docker exec wp bash -lc "$WP core is-installed || $WP core install --url=http://localhost:8080 --title='CI Site' --admin_user=admin --admin_password=admin --admin_email=admin@example.com --skip-email"
+            # Fresh config and idempotent install
+            rm -f /var/www/html/wp-config.php
+            $WP config create --dbname=wp --dbuser=wp --dbpass=wp --dbhost=127.0.0.1:3306
+            $WP db create || true
+            $WP core is-installed || $WP core install \
+              --url=http://localhost:8080 \
+              --title="CI Site" \
+              --admin_user=admin \
+              --admin_password=admin \
+              --admin_email=admin@example.com \
+              --skip-email
+          '
 
       - name: Start Apache and wait for HTTP 200/302
         run: |
