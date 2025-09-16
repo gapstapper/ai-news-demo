@@ -45,30 +45,33 @@ jobs:
             -p 8080:80 \
             wordpress:php8.2-apache
 
-      - name: Prepare WordPress files (stop Apache, clean, unzip latest)
+      - name: Prepare WordPress files (host extract + docker cp)
         run: |
-          # Stop the container to release all file descriptors
+          # 1) Stop container to release any open file descriptors
           docker stop wp
 
-          # Extract WordPress on the host
+          # 2) Download and extract WordPress on the host
           curl -sSL https://wordpress.org/latest.zip -o /tmp/wp.zip
-          rm -rf /tmp/wp && unzip -q /tmp/wp.zip -d /tmp
+          rm -rf /tmp/wordpress && unzip -q /tmp/wp.zip -d /tmp
 
-          # Replace the container docroot from the host side
+          # 3) Replace container docroot from the host (clean copy)
           docker cp /tmp/wordpress/. wp:/var/www/html/
 
-          # Start the container again
+          # 4) Start the container again
           docker start wp
 
-
-
-      - name: Configure and install WordPress
+      - name: Configure and install WordPress (idempotent)
         run: |
-          # Create wp-config and DB, then install core
+          # Install WP-CLI inside the container
           docker exec wp bash -lc "curl -sS -o /usr/local/bin/wp https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar && chmod +x /usr/local/bin/wp"
-          docker exec wp bash -lc "wp config create --dbname=wp --dbuser=wp --dbpass=wp --dbhost=127.0.0.1:3306 --path=/var/www/html --allow-root"
+
+          # If a previous run created wp-config.php, remove it or skip creation
+          docker exec wp bash -lc "rm -f /var/www/html/wp-config.php"
+          docker exec wp bash -lc "[ -f /var/www/html/wp-config.php ] || wp config create --dbname=wp --dbuser=wp --dbpass=wp --dbhost=127.0.0.1:3306 --path=/var/www/html --allow-root"
+
+          # Create DB if needed and install core only if not installed
           docker exec wp bash -lc "wp db create --path=/var/www/html --allow-root || true"
-          docker exec wp bash -lc "wp core install --url=http://localhost:8080 --title='CI Site' --admin_user=admin --admin_password=admin --admin_email=admin@example.com --path=/var/www/html --allow-root --skip-email"
+          docker exec wp bash -lc "wp core is-installed --path=/var/www/html --allow-root || wp core install --url=http://localhost:8080 --title='CI Site' --admin_user=admin --admin_password=admin --admin_email=admin@example.com --path=/var/www/html --allow-root --skip-email"
 
       - name: Start Apache and wait for HTTP 200/302
         run: |
