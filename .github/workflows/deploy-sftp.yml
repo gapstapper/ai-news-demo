@@ -19,25 +19,19 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # SamKirkland action supports SFTP and does not attempt remote exec
       - name: Upload via SFTP
-        uses: SamKirkland/FTP-Deploy-Action@v4
+        uses: SamKirkland/FTP-Deploy-Action@4.3.4
         with:
-          server: ${{ secrets.SFTP_HOST }}
-          username: ${{ secrets.SFTP_USER }}
+          server: ${{ secrets.SFTP_HOST }}        # us-east-1.sftpcloud.io
+          username: ${{ secrets.SFTP_USER }}      # user-a
           password: ${{ secrets.SFTP_PASS }}
           protocol: sftp
           port: ${{ secrets.SFTP_PORT || '22' }}
-          # local project root (your theme files live at the repo root)
           local-dir: .
-          # sftpcloud default home is / (chroot). Choose a folder you can see/write.
-          # If you want a subfolder, it will be created automatically:
           server-dir: /ai-news-hub
-          # Set to false so we only upload/overwrite changed files
           dangerous-clean-slate: false
-          # Speed up uploads; ignore Git metadata
           exclude: |
             **/.git*
             .github/**
             node_modules/**
-            
+            **/.DS_Store
