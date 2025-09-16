@@ -47,14 +47,17 @@ jobs:
 
       - name: Prepare WordPress files (stop Apache, clean, unzip latest)
         run: |
-          # Stop Apache so docroot is not busy
+          # Stop Apache and ensure no processes hold the docroot
           docker exec wp bash -lc "apache2ctl -k stop || true"
-          # Ensure tools exist
-          docker exec wp bash -lc "apt-get update && apt-get install -y curl unzip >/dev/null"
-          # Clean docroot and install WP via OS unzip (avoids phar memory issues)
-          docker exec wp bash -lc "rm -rf /var/www/html/*"
+          docker exec wp bash -lc "pkill -TERM apache2 || true; sleep 1; pkill -KILL apache2 || true"
+          # Non-interactive apt to avoid debconf TTY prompts
+          docker exec -e DEBIAN_FRONTEND=noninteractive wp bash -lc "apt-get update && apt-get install -y -o Dpkg::Options::=--force-confold curl unzip >/dev/null"
+          # Clean docroot safely
+          docker exec wp bash -lc "find /var/www/html -mindepth 1 -maxdepth 1 -exec rm -rf {} +"
+          # Install WordPress via OS unzip (avoids WP-CLI phar memory)
           docker exec wp bash -lc "curl -sSL https://wordpress.org/latest.zip -o /tmp/wp.zip"
           docker exec wp bash -lc "unzip -q /tmp/wp.zip -d /var/www && rm -rf /var/www/html && mv /var/www/wordpress /var/www/html"
+
 
       - name: Configure and install WordPress
         run: |
