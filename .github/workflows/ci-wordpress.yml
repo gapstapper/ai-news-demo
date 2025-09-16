@@ -1,4 +1,4 @@
-name: CI – WordPress Theme Smoke Tests
+name: CI – WordPress Smoke Tests (Fast)
 
 permissions:
   contents: read
@@ -12,6 +12,7 @@ on:
       - ".github/workflows/ci-wordpress.yml"
   pull_request:
     branches: [ "main" ]
+  workflow_dispatch: {}
 
 jobs:
   test:
@@ -31,13 +32,8 @@ jobs:
           --health-interval=5s --health-timeout=5s --health-retries=10
 
     steps:
-      - name: Checkout
+      - name: Checkout repo
         uses: actions/checkout@v4
-
-      - name: Debug – list repo root
-        run: | 
-          pwd
-          ls -la
 
       - name: Start WordPress (php-apache)
         run: |
@@ -48,39 +44,31 @@ jobs:
             -e WORDPRESS_DB_NAME=wp \
             -p 8080:80 \
             wordpress:php8.2-apache
+          # wait for Apache to answer
           for i in {1..60}; do
             curl -sSf http://localhost:8080 >/dev/null && break || sleep 2
           done
 
-      - name: Install WP-CLI
+      - name: Install WP-CLI inside the container
         run: |
-          curl -sS -o wp https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar
-          chmod +x wp
-          sudo mv wp /usr/local/bin/wp
+          docker exec wp bash -lc "curl -sS -o /usr/local/bin/wp https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar && chmod +x /usr/local/bin/wp"
 
-      - name: WP core install
+      - name: Download, configure and install WordPress (inside container)
         run: |
-          wp core install \
-            --url=http://localhost:8080 \
-            --title="CI Site" \
-            --admin_user=admin \
-            --admin_password=admin \
-            --admin_email=admin@example.com \
-            --path=/var/www/html \
-            --allow-root \
-            --skip-email
+          docker exec wp bash -lc "wp core download --path=/var/www/html --allow-root"
+          docker exec wp bash -lc "wp config create --dbname=wp --dbuser=wp --dbpass=wp --dbhost=127.0.0.1:3306 --path=/var/www/html --allow-root"
+          docker exec wp bash -lc "wp db create --path=/var/www/html --allow-root || true"
+          docker exec wp bash -lc \"wp core install --url=http://localhost:8080 --title='CI Site' --admin_user=admin --admin_password=admin --admin_email=admin@example.com --path=/var/www/html --allow-root --skip-email\"
 
-      # Copy your theme (repo root) into the container theme dir
-      - name: Copy theme into container
+      - name: Copy theme into container (repo root -> ai-news-hub)
         run: |
+          docker exec wp bash -lc "rm -rf /var/www/html/wp-content/themes/ai-news-hub"
           docker cp . wp:/var/www/html/wp-content/themes/ai-news-hub
 
       - name: Activate theme
-        run: |
-          docker exec wp wp theme activate ai-news-hub --allow-root --path=/var/www/html
+        run: docker exec wp wp theme activate ai-news-hub --allow-root --path=/var/www/html
 
-      # Register the CPT via a small mu-plugin so tests don't rely on theme PHP
-      - name: Register CPT via mu-plugin
+      - name: Register Articles CPT via mu-plugin
         run: |
           docker exec wp /bin/bash -lc 'mkdir -p /var/www/html/wp-content/mu-plugins && cat >/var/www/html/wp-content/mu-plugins/ai-news-hub-cpt.php <<PHP
           <?php
