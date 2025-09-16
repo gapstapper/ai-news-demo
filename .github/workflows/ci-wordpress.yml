@@ -35,7 +35,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Debug – list repo root
-        run: |
+        run: | 
           pwd
           ls -la
 
