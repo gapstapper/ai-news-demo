@@ -18,27 +18,34 @@ jobs:
   test:
     runs-on: ubuntu-latest
 
-    services:
-      mysql:
-        image: mysql:8
-        env:
-          MYSQL_DATABASE: wp
-          MYSQL_USER: wp
-          MYSQL_PASSWORD: wp
-          MYSQL_ROOT_PASSWORD: root
-        ports: [ "3306:3306" ]
-        options: >-
-          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
-          --health-interval=5s --health-timeout=5s --health-retries=10
-
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Start WordPress (php-apache)
+      - name: Create Docker network
+        run: docker network create wpnet
+
+      - name: Start MySQL (sibling container on wpnet)
+        run: |
+          docker run -d --name mysql \
+            --network wpnet \
+            -e MYSQL_DATABASE=wp \
+            -e MYSQL_USER=wp \
+            -e MYSQL_PASSWORD=wp \
+            -e MYSQL_ROOT_PASSWORD=root \
+            -p 3306:3306 \
+            mysql:8
+          # Wait for native readiness
+          for i in {1..60}; do
+            docker exec mysql sh -lc 'mysqladmin ping -h 127.0.0.1 -uroot -proot >/dev/null 2>&1' && break
+            echo "Waiting for MySQL container..."; sleep 2
+          done
+
+      - name: Start WordPress (php-apache) on same network
         run: |
           docker run -d --name wp \
-            -e WORDPRESS_DB_HOST=host.docker.internal:3306 \
+            --network wpnet \
+            -e WORDPRESS_DB_HOST=mysql:3306 \
             -e WORDPRESS_DB_USER=wp \
             -e WORDPRESS_DB_PASSWORD=wp \
             -e WORDPRESS_DB_NAME=wp \
@@ -55,26 +62,22 @@ jobs:
 
       - name: Configure and install WordPress (single in-container shell)
         run: |
-          # Download wp-cli on HOST and copy into container (avoids Markdown issues)
           curl -sS -L https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar -o /tmp/wp-cli.phar
           docker cp /tmp/wp-cli.phar wp:/usr/local/bin/wp
           docker exec wp bash -lc 'chmod +x /usr/local/bin/wp && /usr/local/bin/wp --version || true'
 
-          # Run everything in ONE container shell
           docker exec wp bash -lc '
             set -e
-
-            # Wait for MySQL on the host-mapped service
+            # Ping MySQL by container name on the same network
             for i in {1..60}; do
-              mysqladmin ping -h host.docker.internal -P 3306 -u wp -pwp >/dev/null 2>&1 && break
-              echo "Waiting for MySQL..."; sleep 2
+              mysqladmin ping -h mysql -P 3306 -u wp -pwp >/dev/null 2>&1 && break
+              echo "Waiting for MySQL (mysql:3306)..."; sleep 2
             done
 
             WP="/usr/local/bin/wp --allow-root --path=/var/www/html"
 
-            # Fresh config and idempotent install, pointing at host.docker.internal
             rm -f /var/www/html/wp-config.php
-            $WP config create --dbname=wp --dbuser=wp --dbpass=wp --dbhost=host.docker.internal:3306
+            $WP config create --dbname=wp --dbuser=wp --dbpass=wp --dbhost=mysql:3306
             $WP db create || true
             $WP core is-installed || $WP core install \
               --url=http://localhost:8080 \
