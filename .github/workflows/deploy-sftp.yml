@@ -19,19 +19,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Upload via SFTP
-        uses: SamKirkland/FTP-Deploy-Action@4
+      - name: Upload via SFTP (wlixcc)
+        uses: wlixcc/SFTP-Deploy-Action@v1.2.4
         with:
-          server: ${{ secrets.SFTP_HOST }}
-          username: ${{ secrets.SFTP_USER }}
+          server: ${{ secrets.SFTP_HOST }}            # us-east-1.sftpcloud.io
+          username: ${{ secrets.SFTP_USER }}          # user-a
           password: ${{ secrets.SFTP_PASS }}
-          protocol: sftp
           port: ${{ secrets.SFTP_PORT || '22' }}
-          local-dir: .
-          server-dir: /ai-news-hub
-          dangerous-clean-slate: false
-          exclude: |
-            **/.git*
-            .github/**
-            node_modules/**
-            **/.DS_Store
+          local_path: "."                             # repo root
+          remote_path: "/ai-news-hub"                 # folder inside sftpcloud home
+          delete_remote_files: false
+          sftp_only: true
+          sftpArgs: "-o StrictHostKeyChecking=no"
+
