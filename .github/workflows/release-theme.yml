@@ -15,7 +15,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Set vars
-        run: echo "THEME_DIR=ai-news-hub-theme/ai-news-hub" >> $GITHUB_ENV
+        run: echo "THEME_DIR=ai-news-hub" >> $GITHUB_ENV
       - name: Validate theme header
         run: |
           test -f "$THEME_DIR/style.css"
@@ -23,7 +23,7 @@ jobs:
       - name: Create ZIP
         run: |
           cd "$THEME_DIR"
-          zip -r ../../ai-news-hub-theme.zip .
+          zip -r ../ai-news-hub-theme.zip .
           cd -
       - name: Checksums
         run: sha256sum ai-news-hub-theme.zip | tee ai-news-hub-theme.zip.sha256
@@ -34,6 +34,7 @@ jobs:
           path: |
             ai-news-hub-theme.zip
             ai-news-hub-theme.zip.sha256
+
 
   release:
     needs: build
@@ -55,3 +56,5 @@ jobs:
           files: |
             dist/ai-news-hub-theme.zip
             dist/ai-news-hub-theme.zip.sha256
+
+
