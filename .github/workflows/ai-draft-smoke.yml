@@ -62,3 +62,4 @@ jobs:
         run: |
           docker exec -e AINEWS_OPENAI_API_KEY="$AINEWS_OPENAI_API_KEY" wp bash -lc "wp ai-research --topic='AI trends in education' --path=/var/www/html --allow-root"
           docker exec wp bash -lc "wp post list --post_type=article --format=ids --path=/var/www/html --allow-root | grep -q ."
+
