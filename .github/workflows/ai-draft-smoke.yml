@@ -50,11 +50,15 @@ jobs:
             ]);
           });
           PHP"
-      - run: |
+      - name: Create sample and flush
+        run: |
           docker exec wp bash -lc "wp rewrite structure '/%postname%/' --hard --path=/var/www/html --allow-root && wp rewrite flush --hard --path=/var/www/html --allow-root"
           docker exec wp bash -lc "wp post create --post_type=article --post_title='CI Sample' --post_status=publish --path=/var/www/html --allow-root"
-      - if: ${{ secrets.AINEWS_OPENAI_API_KEY != '' }}
-        env: { AINEWS_OPENAI_API_KEY: ${{ secrets.AINEWS_OPENAI_API_KEY }} }
+
+      - name: AI draft smoke (only if key provided)
+        if: ${{ secrets.AINEWS_OPENAI_API_KEY != '' }}
+        env:
+          AINEWS_OPENAI_API_KEY: ${{ secrets.AINEWS_OPENAI_API_KEY }}
         run: |
           docker exec -e AINEWS_OPENAI_API_KEY="$AINEWS_OPENAI_API_KEY" wp bash -lc "wp ai-research --topic='AI trends in education' --path=/var/www/html --allow-root"
           docker exec wp bash -lc "wp post list --post_type=article --format=ids --path=/var/www/html --allow-root | grep -q ."
