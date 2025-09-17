@@ -1,0 +1,60 @@
+# File: .github/workflows/ai-draft-smoke.yml
+name: AI Draft Smoke
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths:
+      - ".github/workflows/ai-draft-smoke.yml"
+      - "wp-content/themes/ai-news-hub/inc/ai-research.php"
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker network create wpnet
+      - run: |
+          docker run -d --name mysql --network wpnet \
+            -e MYSQL_DATABASE=wp -e MYSQL_USER=wp -e MYSQL_PASSWORD=wp -e MYSQL_ROOT_PASSWORD=root \
+            -p 3306:3306 mysql:8
+      - run: |
+          docker run -d --name wp --network wpnet \
+            -e WORDPRESS_DB_HOST=mysql:3306 -e WORDPRESS_DB_USER=wp -e WORDPRESS_DB_PASSWORD=wp -e WORDPRESS_DB_NAME=wp \
+            -p 8080:80 wordpress:php8.2-apache
+      - run: |
+          curl -sSL https://wordpress.org/latest.zip -o /tmp/wp.zip
+          unzip -q /tmp/wp.zip -d /tmp
+          docker cp /tmp/wordpress/. wp:/var/www/html
+      - run: |
+          curl -sS -L https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar -o /tmp/wp-cli.phar
+          docker cp /tmp/wp-cli.phar wp:/usr/local/bin/wp
+          docker exec wp bash -lc "chmod +x /usr/local/bin/wp && wp config create --dbname=wp --dbuser=wp --dbpass=wp --dbhost=mysql:3306 --path=/var/www/html --allow-root"
+          docker exec wp bash -lc "wp db create --path=/var/www/html --allow-root || true"
+          docker exec wp bash -lc "wp core install --url=http://localhost:8080 --title=CI --admin_user=admin --admin_password=admin --admin_email=admin@example.com --skip-email --path=/var/www/html --allow-root"
+      - run: |
+          docker exec wp bash -lc "rm -rf /var/www/html/wp-content/themes/ai-news-hub"
+          docker cp wp-content/themes/ai-news-hub/. wp:/var/www/html/wp-content/themes/ai-news-hub
+          docker exec wp bash -lc "wp theme activate ai-news-hub --path=/var/www/html --allow-root"
+      - run: |
+          docker exec wp bash -lc "mkdir -p /var/www/html/wp-content/mu-plugins && cat >/var/www/html/wp-content/mu-plugins/ai-news-hub-cpt.php <<'PHP'
+          <?php
+          add_action('init', function () {
+            register_post_type('article', [
+              'labels' => ['name' => 'Articles', 'singular_name' => 'Article'],
+              'public' => true,
+              'has_archive' => true,
+              'show_in_rest' => true,
+              'rest_base' => 'articles',
+              'supports' => ['title','editor','excerpt','thumbnail'],
+              'rewrite' => ['slug' => 'articles'],
+            ]);
+          });
+          PHP"
+      - run: |
+          docker exec wp bash -lc "wp rewrite structure '/%postname%/' --hard --path=/var/www/html --allow-root && wp rewrite flush --hard --path=/var/www/html --allow-root"
+          docker exec wp bash -lc "wp post create --post_type=article --post_title='CI Sample' --post_status=publish --path=/var/www/html --allow-root"
+      - if: ${{ secrets.AINEWS_OPENAI_API_KEY != '' }}
+        env: { AINEWS_OPENAI_API_KEY: ${{ secrets.AINEWS_OPENAI_API_KEY }} }
+        run: |
+          docker exec -e AINEWS_OPENAI_API_KEY="$AINEWS_OPENAI_API_KEY" wp bash -lc "wp ai-research --topic='AI trends in education' --path=/var/www/html --allow-root"
+          docker exec wp bash -lc "wp post list --post_type=article --format=ids --path=/var/www/html --allow-root | grep -q ."
