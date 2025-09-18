@@ -6,6 +6,8 @@ on:
     paths:
       - ".github/workflows/ai-draft-smoke.yml"
       - "wp-content/themes/ai-news-hub/inc/ai-research.php"
+      - "**/*.php"
+      - "style.css"
 
 jobs:
   test:
@@ -22,58 +24,93 @@ jobs:
           docker run -d --name mysql --network wpnet \
             -e MYSQL_DATABASE=wp -e MYSQL_USER=wp -e MYSQL_PASSWORD=wp -e MYSQL_ROOT_PASSWORD=root \
             -p 3306:3306 mysql:8
+          for i in {1..60}; do
+            docker exec mysql sh -lc 'mysqladmin ping -h 127.0.0.1 -uroot -proot >/dev/null 2>&1' && break
+            echo "Waiting for MySQL container..."; sleep 2
+          done
 
       - name: Start WordPress
         run: |
-          docker run -d --name wp --network wpnet \
+          docker run -d --name wp \
+            --network wpnet \
             -e WORDPRESS_DB_HOST=mysql:3306 \
             -e WORDPRESS_DB_USER=wp \
             -e WORDPRESS_DB_PASSWORD=wp \
             -e WORDPRESS_DB_NAME=wp \
             -p 8080:80 wordpress:php8.2-apache
 
-      - name: Copy fresh WordPress files
+      - name: Prepare WordPress files
         run: |
+          docker stop wp
           curl -sSL https://wordpress.org/latest.zip -o /tmp/wp.zip
-          unzip -q /tmp/wp.zip -d /tmp
-          docker cp /tmp/wordpress/. wp:/var/www/html
+          rm -rf /tmp/wordpress && unzip -q /tmp/wp.zip -d /tmp
+          docker cp /tmp/wordpress/. wp:/var/www/html/
+          docker start wp
 
       - name: Install WP-CLI and core (idempotent)
         run: |
           curl -sS -L https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar -o /tmp/wp-cli.phar
           docker cp /tmp/wp-cli.phar wp:/usr/local/bin/wp
-          docker exec wp bash -lc "chmod +x /usr/local/bin/wp"
-          docker exec wp bash -lc "test -f /var/www/html/wp-config.php || wp config create --dbname=wp --dbuser=wp --dbpass=wp --dbhost=mysql:3306 --path=/var/www/html --allow-root"
-          docker exec wp bash -lc "wp db create --path=/var/www/html --allow-root || true"
-          docker exec wp bash -lc "wp core is-installed --path=/var/www/html --allow-root || wp core install --url=http://localhost:8080 --title=CI --admin_user=admin --admin_password=admin --admin_email=admin@example.com --skip-email --path=/var/www/html --allow-root"
+          docker exec wp bash -lc 'chmod +x /usr/local/bin/wp && /usr/local/bin/wp --version || true'
+          docker exec wp bash -lc '
+            set -e
+            for i in {1..60}; do
+              mysqladmin ping -h mysql -P 3306 -u wp -pwp >/dev/null 2>&1 && break
+              echo "Waiting for MySQL (mysql:3306)..."; sleep 2
+            done
+            WP="/usr/local/bin/wp --allow-root --path=/var/www/html"
+            test -f /var/www/html/wp-config.php || $WP config create --dbname=wp --dbuser=wp --dbpass=wp --dbhost=mysql:3306
+            $WP db create || true
+            $WP core is-installed || $WP core install --url=http://localhost:8080 --title="CI Site" --admin_user=admin --admin_password=admin --admin_email=admin@example.com --skip-email
+          '
 
-      - name: Copy theme and activate
+      - name: Copy theme into container (repo root -> ai-news-hub)
         run: |
-          docker exec wp bash -lc "rm -rf /var/www/html/wp-content/themes/ai-news-hub"
-          docker cp wp-content/themes/ai-news-hub/. wp:/var/www/html/wp-content/themes/ai-news-hub
-          docker exec wp bash -lc "wp theme activate ai-news-hub --path=/var/www/html --allow-root"
+          docker exec wp bash -lc 'rm -rf /var/www/html/wp-content/themes/ai-news-hub'
+          docker cp . wp:/var/www/html/wp-content/themes/ai-news-hub
+
+      - name: Activate theme
+        run: docker exec wp /usr/local/bin/wp theme activate ai-news-hub --allow-root --path=/var/www/html
 
       - name: Register Articles CPT via mu-plugin
         run: |
-          docker exec wp bash -lc "mkdir -p /var/www/html/wp-content/mu-plugins && cat >/var/www/html/wp-content/mu-plugins/ai-news-hub-cpt.php <<'PHP'
+          docker exec wp /bin/bash -lc 'mkdir -p /var/www/html/wp-content/mu-plugins && cat >/var/www/html/wp-content/mu-plugins/ai-news-hub-cpt.php <<PHP
           <?php
-          add_action('init', function () {
-            register_post_type('article', [
-              'labels' => ['name' => 'Articles', 'singular_name' => 'Article'],
-              'public' => true,
-              'has_archive' => true,
-              'show_in_rest' => true,
-              'rest_base' => 'articles',
-              'supports' => ['title','editor','excerpt','thumbnail'],
-              'rewrite' => ['slug' => 'articles'],
-            ]);
+          add_action("init", function () {
+            register_post_type("article", array(
+              "labels" => array("name" => "Articles","singular_name" => "Article"),
+              "public" => true,
+              "has_archive" => true,
+              "show_in_rest" => true,
+              "rest_base" => "articles",
+              "supports" => array("title","editor","excerpt","thumbnail"),
+              "taxonomies" => array("post_tag"),
+              "rewrite" => array("slug" => "articles"),
+            ));
           });
-          PHP"
+          PHP'
 
-      - name: Create sample and flush
+      - name: Flush permalinks
         run: |
-          docker exec wp bash -lc "wp rewrite structure '/%postname%/' --hard --path=/var/www/html --allow-root && wp rewrite flush --hard --path=/var/www/html --allow-root"
-          docker exec wp bash -lc "wp post create --post_type=article --post_title='CI Sample' --post_status=publish --path=/var/www/html --allow-root"
+          docker exec wp /usr/local/bin/wp rewrite structure '/%postname%/' --hard --allow-root --path=/var/www/html
+          docker exec wp /usr/local/bin/wp rewrite flush --hard --allow-root --path=/var/www/html
+
+      - name: Create sample Article
+        run: |
+          docker exec wp /usr/local/bin/wp post create \
+            --post_type=article \
+            --post_title="CI Sample" \
+            --post_status=publish \
+            --allow-root --path=/var/www/html
+
+      - name: Start Apache and wait
+        run: |
+          docker exec wp bash -lc 'apache2ctl -k start'
+          for i in {1..120}; do
+            code=$(curl -s -o /var/tmp/out -w "%{http_code}" http://localhost:8080/ || true)
+            [ "$code" = "200" ] || [ "$code" = "302" ] && echo "Apache ready ($code)" && break
+            echo "Waiting for Apache... HTTP $code"; sleep 1
+          done
 
       - name: AI draft smoke (only if key provided)
         env:
@@ -84,4 +121,4 @@ jobs:
           else
             echo "No API key secret set; skipping AI draft."
           fi
-          docker exec wp bash -lc "wp post list --post_type=article --format=ids --path=/var/www/html --allow-root | grep -q ."
+          docker exec wp /usr/local/bin/wp post list --post_type=article --format=ids --allow-root --path=/var/www/html | grep -q .
