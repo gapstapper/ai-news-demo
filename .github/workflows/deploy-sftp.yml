@@ -20,15 +20,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Upload via SFTP (SamKirkland sftp-deploy)
-        uses: SamKirkland/sftp-deploy@v1.4.0
+      - name: Upload via SFTP (atmoz/sftp-deploy)
+        uses: atmoz/sftp-deploy@v2
         with:
-          server: ${{ secrets.SFTP_HOST }}
+          host: ${{ secrets.SFTP_HOST }}
+          port: ${{ secrets.SFTP_PORT || '22' }}
           username: ${{ secrets.SFTP_USER }}
           password: ${{ secrets.SFTP_PASS }}
-          port: ${{ secrets.SFTP_PORT || '22' }}
-          local-path: .
-          remote-path: /ai-news-hub
+          local-dir: .
+          remote-dir: /ai-news-hub
           exclude: |
             **/.git/**
             **/.DS_Store
@@ -36,5 +36,4 @@ jobs:
             **/src/**
             **/.vite/**
             **/coverage/**
-            **/*.map 
- 
+            **/*.map
