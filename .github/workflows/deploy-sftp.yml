@@ -12,7 +12,6 @@ on:
       - ".github/workflows/deploy-sftp.yml"
   workflow_dispatch: {}
 
-
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -27,14 +26,28 @@ jobs:
           username: ${{ secrets.SFTP_USER }}
           password: ${{ secrets.SFTP_PASS }}
           port: ${{ secrets.SFTP_PORT || '22' }}
+          # Include concrete theme paths first (so tar is never empty), then exclude globs.
           source: |
-            ./*
+            functions.php
+            style.css
+            header.php
+            footer.php
+            index.php
+            archive-article.php
+            single-article.php
+            .github/**
+            inc/**
+            template-parts/**
+            assets/**
+            react/**
+            !react/**/node_modules/**
             !.git/**
-            !**/node_modules/**
+            !**/.DS_Store
             !**/src/**
             !**/.vite/**
             !**/coverage/**
             !**/*.map
           target: /ai-news-hub
           overwrite: true
+
  
