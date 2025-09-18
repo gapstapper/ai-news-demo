@@ -16,20 +16,16 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - name: List workspace
         run: |
           pwd
-          echo "--- root ---"
           ls -la
-          echo "--- inc ---"
-          ls -la inc || true
-          echo "--- assets ---"
-          ls -la assets || true
-          echo "--- react ---"
-          ls -la react || true
 
-      - name: Checkout
-        uses: actions/checkout@v4
 
       - name: Upload via SFTP (scp)
         uses: appleboy/scp-action@v0.1.7
