@@ -36,6 +36,7 @@ jobs:
           port: ${{ secrets.SFTP_PORT || '21' }}
           local-dir: ./
           server-dir: /ai-news-hub/
+          state-name: .ftp-deploy-sync-state.json
           dangerous-clean-slate: false
           exclude: |
             **/.git/**
@@ -46,3 +47,6 @@ jobs:
             **/.vite/**
             **/coverage/**
             **/*.map
+          security: loose                      # try strict first; if resets persist, use loose
+          timeout: 120000
+          retry-count: 3
