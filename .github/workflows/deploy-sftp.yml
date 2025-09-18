@@ -1,4 +1,4 @@
-name: Deploy Theme via SFTP (sftpcloud)
+name: Deploy Theme via SFTP (filtered)
 
 permissions:
   contents: read
@@ -18,6 +18,34 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # 1) Build a clean deploy folder with only production files
+      - name: Prepare deploy directory
+        run: |
+          set -e
+          # Absolute paths for clarity
+          THEME_SRC="./"
+          DEPLOY_DIR="deploy"
+          mkdir -p "$DEPLOY_DIR"
+
+          # Use rsync to copy theme into deploy/, excluding development artifacts
+          # Adjust excludes as needed for your project
+          rsync -a --delete \
+            --exclude ".git/" \
+            --exclude ".github/" \
+            --exclude ".DS_Store" \
+            --exclude "**/node_modules/" \
+            --exclude "**/.vite/" \
+            --exclude "**/dist/" \
+            --exclude "**/coverage/" \
+            --exclude "**/*.map" \
+            --exclude "react/" \
+            --exclude "**/src/" \
+            "$THEME_SRC"/ "$DEPLOY_DIR"/
+
+          echo "Contents of deploy/:"
+          find "$DEPLOY_DIR" -maxdepth 2 -type d -print
+
+      # 2) Upload that filtered directory via SFTP
       - name: Upload via SFTP (wlixcc)
         uses: wlixcc/SFTP-Deploy-Action@v1.2.4
         with:
@@ -25,21 +53,8 @@ jobs:
           username: ${{ secrets.SFTP_USER }}
           password: ${{ secrets.SFTP_PASS }}
           port: ${{ secrets.SFTP_PORT || '22' }}
-          local_path: "./"
+          local_path: "./deploy"
           remote_path: "/ai-news-hub/"
           delete_remote_files: false
           sftp_only: true
           sftpArgs: "-o StrictHostKeyChecking=no"
-          # wlixcc expects a single string for exclude, not a YAML sequence
-          log-level: verbose
-          exclude: >
-            **/.git/**,
-            **/.github/**,
-            **/.DS_Store/,
-            **/node_modules/**,
-            react/**,
-            **/src/**,
-            **/.vite/**,
-            **/dist/**,
-            **/coverage/**,
-            **/*.map
