@@ -40,6 +40,7 @@ jobs:
           dangerous-clean-slate: false
           exclude: |
             **/.git/**
+            **/.github/**
             **/.DS_Store/
             **/node_modules/**
             react/**
