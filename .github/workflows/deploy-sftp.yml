@@ -35,11 +35,11 @@ jobs:
           protocol: ftps
           port: ${{ secrets.SFTP_PORT || '21' }}
           llocal-dir: ./
-          server-dir: /ai-news-hub
+          server-dir: /ai-news-hub/
           dangerous-clean-slate: false
           exclude: |
             **/.git/**
-            **/.DS_Store
+            **/.DS_Store/
             **/node_modules/**
             react/**
             **/src/**
