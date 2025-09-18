@@ -48,5 +48,5 @@ jobs:
             **/coverage/**
             **/*.map
           security: loose                      # try strict first; if resets persist, use loose
-          timeout: 120000
-          retry-count: 3
+          timeout: 180000
+          log-level: verbose
