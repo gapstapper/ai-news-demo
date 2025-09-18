@@ -34,7 +34,7 @@ jobs:
           password: ${{ secrets.SFTP_PASS }}
           protocol: ftps
           port: ${{ secrets.SFTP_PORT || '21' }}
-          local-dir: .
+          llocal-dir: ./
           server-dir: /ai-news-hub
           dangerous-clean-slate: false
           exclude: |
