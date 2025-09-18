@@ -27,7 +27,7 @@ jobs:
           ls -la
 
       - name: Deploy via SFTP
-        uses: SamKirkland/SFTP-Deploy-Action@v4.1.0
+        uses: SamKirkland/SFTP-Deploy-Action@2fd1f2b4a4c2a7f8c2f6e6f8a8e9a9f1a7b2e5c
         with:
           server: ${{ secrets.SFTP_HOST }}
           username: ${{ secrets.SFTP_USER }}
