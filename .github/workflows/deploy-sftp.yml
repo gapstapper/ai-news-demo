@@ -20,20 +20,24 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Upload via SFTP (atmoz/sftp-deploy)
-        uses: atmoz/sftp-deploy@v2
+      - name: Upload via SFTP (lftp mirror)
+        uses: pressidium/lftp-mirror-action@v1
         with:
           host: ${{ secrets.SFTP_HOST }}
           port: ${{ secrets.SFTP_PORT || '22' }}
-          username: ${{ secrets.SFTP_USER }}
-          password: ${{ secrets.SFTP_PASS }}
-          local-dir: .
-          remote-dir: /ai-news-hub
+          user: ${{ secrets.SFTP_USER }}
+          pass: ${{ secrets.SFTP_PASS }}
+          protocol: sftp
+          localDir: .
+          remoteDir: /ai-news-hub
+          # lftp exclude patterns (space-separated or newline with backslashes)
           exclude: |
-            **/.git/**
+            .git/
             **/.DS_Store
-            **/node_modules/**
-            **/src/**
-            **/.vite/**
-            **/coverage/**
+            **/node_modules/
+            **/src/
+            **/.vite/
+            **/coverage/
             **/*.map
+          options: --verbose --only-newer
+ 
