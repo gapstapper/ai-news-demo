@@ -37,7 +37,6 @@ jobs:
           remote-path: /ai-news-hub
           ignore: |
             .git/**
-            .github/**
             **/node_modules/**
             **/src/**
             **/.vite/**
