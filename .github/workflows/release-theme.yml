@@ -1,4 +1,4 @@
-name: Build and Release AI-News Theme artifact (filtered)
+name: AI-News Theme Build and Release Artifact  
 
 permissions:
   contents: write
