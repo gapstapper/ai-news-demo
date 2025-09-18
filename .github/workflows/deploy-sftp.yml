@@ -34,12 +34,6 @@ jobs:
           sftpArgs: "-o StrictHostKeyChecking=no"
           # wlixcc expects a single string for exclude, not a YAML sequence
           # exclude react/headlines/node_modules sources (**/node_modules/** below) (built files live in assets/)
-          exclude: >
-            **/.git/**,
-             **/.DS_Store,
-            **/node_modules/**,  
-            **/src/**,
-            **/.vite/**,
-            **/coverage/**,
-            **/*.map
+          exclude: "**/.git/**,**/.DS_Store,**/node_modules/**,react/**,**/src/**,**/.vite/**,**/coverage/**,**/*.map"
+
  
