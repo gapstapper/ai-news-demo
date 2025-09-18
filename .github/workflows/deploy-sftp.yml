@@ -7,9 +7,11 @@ on:
   push:
     branches: [ "main" ]
     paths:
-      - "wp-content/themes/ai-news-hub/**"
+      - "**/*"
+      - "!.github/**"
       - ".github/workflows/deploy-sftp.yml"
   workflow_dispatch: {}
+
 
 jobs:
   deploy:
@@ -25,7 +27,7 @@ jobs:
           username: ${{ secrets.SFTP_USER }}
           password: ${{ secrets.SFTP_PASS }}
           port: ${{ secrets.SFTP_PORT || '22' }}
-          local_path: "wp-content/themes/ai-news-hub"
+          local_path: "."
           remote_path: "/ai-news-hub"
           delete_remote_files: false
           sftp_only: true
