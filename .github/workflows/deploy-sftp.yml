@@ -33,11 +33,11 @@ jobs:
           username: ${{ secrets.SFTP_USER }}
           password: ${{ secrets.SFTP_PASS }}
           port: ${{ secrets.SFTP_PORT || '22' }}
-          local-path: ./              # repo root contains the theme files
-          remote-path: /ai-news-hub   # destination on SFTPCloud
-          # Files/folders to ignore (do not upload)
+          local-path: ./            # repo root
+          remote-path: /ai-news-hub
           ignore: |
             .git/**
+            .github/**
             **/node_modules/**
             **/src/**
             **/.vite/**
