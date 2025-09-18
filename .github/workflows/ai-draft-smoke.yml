@@ -56,10 +56,13 @@ jobs:
           docker exec wp bash -lc "wp post create --post_type=article --post_title='CI Sample' --post_status=publish --path=/var/www/html --allow-root"
 
       - name: AI draft smoke (only if key provided)
-        if: ${{ secrets.AINEWS_OPENAI_API_KEY != '' }}
         env:
           AINEWS_OPENAI_API_KEY: ${{ secrets.AINEWS_OPENAI_API_KEY }}
         run: |
-          docker exec -e AINEWS_OPENAI_API_KEY="$AINEWS_OPENAI_API_KEY" wp bash -lc "wp ai-research --topic='AI trends in education' --path=/var/www/html --allow-root"
+          if [ -n "$AINEWS_OPENAI_API_KEY" ]; then
+            docker exec -e AINEWS_OPENAI_API_KEY="$AINEWS_OPENAI_API_KEY" wp bash -lc "wp ai-research --topic='AI trends in education' --path=/var/www/html --allow-root"
+          else
+            echo "No API key secret set; skipping AI draft."
+          fi
           docker exec wp bash -lc "wp post list --post_type=article --format=ids --path=/var/www/html --allow-root | grep -q ."
 
