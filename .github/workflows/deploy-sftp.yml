@@ -35,14 +35,27 @@ jobs:
           password: ${{ secrets.SFTP_PASS }}
           port: ${{ secrets.SFTP_PORT || '22' }}
           # Include concrete theme paths first (so tar is never empty), then exclude globs.
-          source: |
-            ./
-            !.git/**
-            !**/node_modules/**
-            !**/src/**
-            !**/.vite/**
-            !**/coverage/**
-            !**/*.map
+          
+        source: |
+          archive-article.php
+          footer.php
+          functions.php
+          header.php
+          index.php
+          single-article.php
+          style.css
+          inc/**
+          template-parts/**
+          assets/**
+          react/**
+          .github/**
+          !react/**/node_modules/**
+          !.git/**
+          !**/.DS_Store
+          !**/src/**
+          !**/.vite/**
+          !**/coverage/**
+          !**/*.map
           target: /ai-news-hub
           overwrite: true
 
