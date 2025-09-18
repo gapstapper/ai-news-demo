@@ -20,24 +20,21 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Upload via SFTP (lftp mirror)
-        uses: pressidium/lftp-mirror-action@v1
+      - name: Upload via SFTP (scp)
+        uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.SFTP_HOST }}
+          username: ${{ secrets.SFTP_USER }}
+          password: ${{ secrets.SFTP_PASS }}
           port: ${{ secrets.SFTP_PORT || '22' }}
-          user: ${{ secrets.SFTP_USER }}
-          pass: ${{ secrets.SFTP_PASS }}
-          protocol: sftp
-          localDir: .
-          remoteDir: /ai-news-hub
-          # lftp exclude patterns (space-separated or newline with backslashes)
-          exclude: |
-            .git/
-            **/.DS_Store
-            **/node_modules/
-            **/src/
-            **/.vite/
-            **/coverage/
-            **/*.map
-          options: --verbose --only-newer
+          source: |
+            ./*
+            !.git/**
+            !**/node_modules/**
+            !**/src/**
+            !**/.vite/**
+            !**/coverage/**
+            !**/*.map
+          target: /ai-news-hub
+          overwrite: true
  
