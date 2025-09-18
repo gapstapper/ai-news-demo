@@ -166,12 +166,15 @@ jobs:
 
   ai_draft:
     needs: provision
-    if: ${{ github.event_name != 'pull_request' && secrets.AINEWS_OPENAI_API_KEY != '' }}
     runs-on: ubuntu-latest
     env:
       AINEWS_OPENAI_API_KEY: ${{ secrets.AINEWS_OPENAI_API_KEY }}
     steps:
-      - name: AI draft smoke (only if key provided)
+      - name: AI draft smoke (guarded in shell)
         run: |
-          docker exec -e AINEWS_OPENAI_API_KEY="${AINEWS_OPENAI_API_KEY}" "${{ env.WP_WEB_CONTAINER }}" bash -lc "/usr/local/bin/wp ai-research --topic='AI trends in education' --path='${{ env.WP_PATH }}' --allow-root"
-          docker exec "${{ env.WP_WEB_CONTAINER }}" /usr/local/bin/wp post list --post_type=article --format=ids --allow-root --path="${{ env.WP_PATH }}" | grep -q .
+          if [ -n "${AINEWS_OPENAI_API_KEY}" ] && [ "${{ github.event_name }}" != "pull_request" ]; then
+            docker exec -e AINEWS_OPENAI_API_KEY="${AINEWS_OPENAI_API_KEY}" "${{ env.WP_WEB_CONTAINER }}" bash -lc "/usr/local/bin/wp ai-research --topic='AI trends in education' --path='${{ env.WP_PATH }}' --allow-root"
+            docker exec "${{ env.WP_WEB_CONTAINER }}" /usr/local/bin/wp post list --post_type=article --format=ids --allow-root --path="${{ env.WP_PATH }}" | grep -q .
+          else
+            echo "Skipping AI draft (no key or PR context)."
+          fi
