@@ -16,6 +16,18 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
+      - name: List workspace
+        run: |
+          pwd
+          echo "--- root ---"
+          ls -la
+          echo "--- inc ---"
+          ls -la inc || true
+          echo "--- assets ---"
+          ls -la assets || true
+          echo "--- react ---"
+          ls -la react || true
+
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -28,21 +40,9 @@ jobs:
           port: ${{ secrets.SFTP_PORT || '22' }}
           # Include concrete theme paths first (so tar is never empty), then exclude globs.
           source: |
-            functions.php
-            style.css
-            header.php
-            footer.php
-            index.php
-            archive-article.php
-            single-article.php
-            .github/**
-            inc/**
-            template-parts/**
-            assets/**
-            react/**
-            !react/**/node_modules/**
+            ./
             !.git/**
-            !**/.DS_Store
+            !**/node_modules/**
             !**/src/**
             !**/.vite/**
             !**/coverage/**
