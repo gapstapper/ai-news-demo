@@ -26,18 +26,22 @@ jobs:
           pwd
           ls -la
 
-      - name: Deploy via SFTP
+      - name: Upload via SFTP (SamKirkland)
         uses: SamKirkland/FTP-Deploy-Action@v4.3.4
         with:
           server: ${{ secrets.SFTP_HOST }}
           username: ${{ secrets.SFTP_USER }}
           password: ${{ secrets.SFTP_PASS }}
+          protocol: sftp
           port: ${{ secrets.SFTP_PORT || '22' }}
-          local-path: ./            # repo root
-          remote-path: /ai-news-hub
-          ignore: |
-            .git/**
+          local-dir: .
+          server-dir: /ai-news-hub
+          dangerous-clean-slate: false
+          exclude: |
+            **/.git/**
+            **/.DS_Store
             **/node_modules/**
+            react/**
             **/src/**
             **/.vite/**
             **/coverage/**
