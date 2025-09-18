@@ -1,4 +1,4 @@
-name: Deploy Theme via SFTP (filtered)
+name: BackUp AI-News Theme via SFTP (filtered)
 
 permissions:
   contents: read
