@@ -7,8 +7,7 @@ on:
   push:
     branches: [ "main" ]
     paths:
-      - "**/*.php"
-      - "style.css"
+      - "wp-content/themes/ai-news-hub/**"
       - ".github/workflows/deploy-sftp.yml"
   workflow_dispatch: {}
 
@@ -19,16 +18,34 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # Optional: ensure React assets are built before deploy (skip if already built/committed)
+      # - name: Build React assets
+      #   run: |
+      #     cd wp-content/themes/ai-news-hub/react/headlines
+      #     npm ci
+      #     npm run build
+
       - name: Upload via SFTP (wlixcc)
         uses: wlixcc/SFTP-Deploy-Action@v1.2.4
         with:
-          server: ${{ secrets.SFTP_HOST }}            # us-east-1.sftpcloud.io
-          username: ${{ secrets.SFTP_USER }}          # user-a
+          server: ${{ secrets.SFTP_HOST }}            # e.g., us-east-1.sftpcloud.io
+          username: ${{ secrets.SFTP_USER }}          # e.g., user-a
           password: ${{ secrets.SFTP_PASS }}
           port: ${{ secrets.SFTP_PORT || '22' }}
-          local_path: "."                             # repo root
-          remote_path: "/ai-news-hub"                 # folder inside sftpcloud home
+          # Deploy only the theme directory
+          local_path: "wp-content/themes/ai-news-hub"
+          remote_path: "/ai-news-hub"                 # remote folder in sftpcloud home
           delete_remote_files: false
           sftp_only: true
           sftpArgs: "-o StrictHostKeyChecking=no"
-
+          # Exclude heavy and dev-only content from upload
+          exclude:
+            - "**/.git/**"
+            - "**/.DS_Store"
+            - "**/node_modules/**"
+            - "react/headlines/node_modules**"                               # exclude react/headlines/node_modules sources (built files live in assets/)
+            - "**/src/**"
+            - "**/.vite/**"
+            - "**/dist/**"                             # keep if not needed; assets/headlines contains build output
+            - "**/coverage/**"
+            - "**/*.map"

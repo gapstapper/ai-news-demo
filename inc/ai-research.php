@@ -11,18 +11,29 @@ class AINews_Research {
     }
   }
 
-  private static function api_key() { return defined('AINEWS_OPENAI_API_KEY') ? AINEWS_OPENAI_API_KEY : null; }
-  private static function api_base() { return defined('AINEWS_OPENAI_BASE') ? AINEWS_OPENAI_BASE : 'https://api.openai.com/v1'; }
-  private static function model()   { return defined('AINEWS_OPENAI_MODEL') ? AINEWS_OPENAI_MODEL : 'gpt-4o-mini'; }
+  // Prefer WP constants; fall back to environment variables for CI/containers.
+  private static function api_key() {
+    if (defined('AINEWS_OPENAI_API_KEY') && AINEWS_OPENAI_API_KEY) return AINEWS_OPENAI_API_KEY;
+    $env = getenv('AINEWS_OPENAI_API_KEY');
+    return $env ? $env : null;
+  }
+  private static function api_base() {
+    if (defined('AINEWS_OPENAI_BASE') && AINEWS_OPENAI_BASE) return AINEWS_OPENAI_BASE;
+    return getenv('AINEWS_OPENAI_BASE') ?: 'https://api.openai.com/v1';
+  }
+  private static function model() {
+    if (defined('AINEWS_OPENAI_MODEL') && AINEWS_OPENAI_MODEL) return AINEWS_OPENAI_MODEL;
+    return getenv('AINEWS_OPENAI_MODEL') ?: 'gpt-4o-mini';
+  }
 
   public static function menu() {
     add_submenu_page(
-        'edit.php?post_type=article',
-        'AI Research',
-        'AI Research',
-        'edit_posts',
-        'ai-research',
-        [__CLASS__, 'render_admin']
+      'edit.php?post_type=article',
+      'AI Research',
+      'AI Research',
+      'edit_posts',
+      'ai-research',
+      [__CLASS__, 'render_admin']
     );
   }
 
@@ -31,7 +42,7 @@ class AINews_Research {
     <div class="wrap">
       <h1>AI Research Draft</h1>
       <?php if (!self::api_key()) : ?>
-        <div class="notice notice-error"><p>Missing AINEWS_OPENAI_API_KEY.</p></div>
+        <div class="notice notice-error"><p>Missing AINEWS_OPENAI_API_KEY (constant or environment variable).</p></div>
       <?php endif; ?>
       <p>Type a topic. The assistant drafts a new Article with title, tags, and formatted HTML.</p>
       <input type="text" id="ai-news-topic" class="regular-text" placeholder="e.g., AI trends in healthcare" />
