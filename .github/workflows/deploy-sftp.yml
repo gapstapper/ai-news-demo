@@ -20,12 +20,11 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
+          
       - name: List workspace
         run: |
           pwd
           ls -la
-
 
       - name: Upload via SFTP (scp)
         uses: appleboy/scp-action@v0.1.7
@@ -35,27 +34,26 @@ jobs:
           password: ${{ secrets.SFTP_PASS }}
           port: ${{ secrets.SFTP_PORT || '22' }}
           # Include concrete theme paths first (so tar is never empty), then exclude globs.
-          
-        source: |
-          archive-article.php
-          footer.php
-          functions.php
-          header.php
-          index.php
-          single-article.php
-          style.css
-          inc/**
-          template-parts/**
-          assets/**
-          react/**
-          .github/**
-          !react/**/node_modules/**
-          !.git/**
-          !**/.DS_Store
-          !**/src/**
-          !**/.vite/**
-          !**/coverage/**
-          !**/*.map
+          source: |
+            archive-article.php
+            footer.php
+            functions.php
+            header.php
+            index.php
+            single-article.php
+            style.css
+            inc/**
+            template-parts/**
+            assets/**
+            react/**
+            .github/**
+            !react/**/node_modules/**
+            !.git/**
+            !**/.DS_Store
+            !**/src/**
+            !**/.vite/**
+            !**/coverage/**
+            !**/*.map
           target: /ai-news-hub
           overwrite: true
 
