@@ -132,20 +132,22 @@ jobs:
         run: |
           docker exec "${WP_WEB_CONTAINER}" /usr/local/bin/wp post create \
             --post_type=article \
-            --post_title="CI Sample" \
+            --post_title="CI Sample Article created during Smoke Test run" \
             --post_status=publish \
             --allow-root --path="${WP_PATH}"
 
-      # Smoke tests (same runner/containers)
+      # Smoke test – homepage confirms that homepage loads successfully
       - name: Smoke test – homepage
-        run: curl -sSf "${WP_URL}/" | grep -i "<html"
+        run: curl -sSf "${WP_URL}/" | grep -i "Search Article Archive"
+      # Smoke test – Articles archive confirms that Articles page loads successfully
       - name: Smoke test – Articles archive
         run: curl -sSf "${WP_URL}/articles/" | grep -i "Articles"
+      # Smoke test – REST confirms that the API endpoint /wp-json/wp/v2/articles responds successfully
       - name: Smoke test – REST
-        run: curl -sSf "${WP_URL}/wp-json/wp/v2/articles" | grep -i "CI Sample"
+        run: curl -sSf "${WP_URL}/wp-json/wp/v2/articles" | grep -i "CI Sample Article created during Smoke Test run"
 
-      # AI smoke (guarded in shell; safe for PRs)
-      - name: AI draft smoke (guarded in shell)
+      # Smoke test – AI Research Article creates an article from an  OpenAI‑compatible endpoint and verifiest hat  at least one Article ID exists
+      - name: Smoke test – AI Research Article
         env:
           AINEWS_OPENAI_API_KEY: ${{ secrets.AINEWS_OPENAI_API_KEY }}
         run: |
@@ -153,5 +155,5 @@ jobs:
             docker exec -e AINEWS_OPENAI_API_KEY="${AINEWS_OPENAI_API_KEY}" "${WP_WEB_CONTAINER}" bash -lc "/usr/local/bin/wp ai-research --topic='AI trends in education' --path='${WP_PATH}' --allow-root"
             docker exec "${WP_WEB_CONTAINER}" /usr/local/bin/wp post list --post_type=article --format=ids --allow-root --path="${WP_PATH}" | grep -q .
           else
-            echo "Skipping AI draft (no key or PR context)."
+            echo "Skipping Smoke test – AI Research Article (no key or PR context)."
           fi
