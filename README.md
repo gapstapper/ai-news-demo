@@ -70,6 +70,6 @@ wp-config.php                                         # AI News WP Theme + AI-Re
 - Ensure the CPT plugin is active and Permalinks are saved; verify REST at /wp-json/ and /wp-json/wp/v2/articles before testing React fetch.
 
 ### GitHub Actions
-- Build & Release: .github/workflows/release-theme.yml zips theme, generates SHA256, uploads artifact, and creates a Release on demand or tag push; demo without a server.
-- WordPress Smoke Tests: .github/workflows/ci-wordpress.yml boots MySQL+WP in Docker, copies theme, registers CPT via mu-plugin, flushes permalinks, creates a sample Article, and curls homepage, archive, and REST.
-- AI Draft Smoke (optional): .github/workflows/ai-draft-smoke.yml runs wp ai-research in CI when AINEWS_OPENAI_API_KEY secret is present, verifying the automation path end‑to‑end.
+- AI-News Theme Build & Release Artifact: .github/workflows/release-theme.yml zips theme, generates SHA256, uploads artifact, and creates a Release on demand or tag push; demo without a server.
+- AI-News Theme Smoke Tests Workflow: .github/workflows/smoke-tests-workflow.yml boots MySQL+WP in Docker, copies theme, registers CPT via mu-plugin, flushes permalinks, creates a sample Article, and curls homepage, archive, and REST. Also, runs wp ai-research in CI when AINEWS_OPENAI_API_KEY secret is present, verifying the automation path end‑to‑end.
+- AI-News Theme SFTP BackUp: CI/CD Workflow for SFTP deploy / backup of theme path 
