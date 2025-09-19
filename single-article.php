@@ -4,7 +4,7 @@ get_header();
 <main>
   <?php if ( have_posts() ) : while ( have_posts() ) : the_post(); ?>
     <article>
-      <h1><?php echo esc_html( get_the_title() ); ?></h1>
+      <h1><?php echo "Article"; ?></h1>
       <div><?php the_content(); ?></div>
 
       <?php if ( has_excerpt() ) : ?>

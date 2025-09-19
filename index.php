@@ -1,6 +1,6 @@
 <?php get_header(); ?>
 <main>
-  <h1>Fallback Index</h1>
+  <h1>Search Article Archive</h1>
   <?php if ( have_posts() ) : while ( have_posts() ) : the_post(); ?>
     <article>
       <h2><?php the_title(); ?></h2>
