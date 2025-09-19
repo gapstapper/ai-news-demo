@@ -6,38 +6,38 @@ A WordPress demo that combines a REST‑enabled “Articles” Custom Post Type 
 wp-content/                                           # AI News WP Theme 
 ├─ plugins/                                           # AI News WP Theme 
 │  └─ ai-news-hub-cpt/                                # AI News WP Theme 
-│     └─ ai-news-hub-cpt.php                          # CPT plugin registers 'article' + REST 
+│     └─ ai-news-hub-cpt.php                          # AI News WP Theme Plugin registers the “article” Custom Post Type 
 └─ themes/                                            # AI News WP Theme 
    └─ ai-news-hub/                                    # AI News WP Theme 
       ├─ style.css                                    # Theme metadata + base styles 
-      ├─ functions.php                                # Enqueues assets, shortcode, require AI module 
+      ├─ functions.php                                # Enqueues React assets, registers shortcode, and includes AI automation module 
       ├─ header.php                                   # Required head with wp_head 
       ├─ footer.php                                   # Required footer with wp_footer 
-      ├─ index.php                                    # Fallback loop template 
+      ├─ index.php                                    # Index page - (includes Front Page React Widget - Search Article Archive)
       ├─ archive-article.php                          # Articles archive template 
       ├─ single-article.php                           # Single Article template 
       ├─ template-parts/                              # React Article Search Widget 
-      │  └─ react-headlines.php                       # Server-rendered mount div + data attributes 
+      │  └─ react-headlines.php                       # Server‑rendered mount for the React Headlines widget via functions.php
       ├─ inc/                                         # AI-Research Integration 
-      │  └─ ai-research.php                           # AINews_Research class (submenu, Ajax, WP-CLI, LLM) 
+      │  └─ ai-research.php                           # Includes AI-Research Integration class AINews_Research class (submenu, Ajax, WP-CLI, LLM) 
       ├─ react/                                       # React Article Search Widget 
       │  └─ headlines/                                # React Article Search Widget 
-      │     ├─ package.json                           # React/Vite project manifest 
-      │     ├─ vite.config.js                         # Vite build config → assets/headlines output 
+      │     ├─ package.json                           # React/Vite project manifest (dependencies, scripts + build entry) so the widget compiles to static assets
+      │     ├─ vite.config.js                         # Vite build config targeting assets/headlines output path, producing hashed JS/CSS bundles for functions.php use
       │     └─ src/                                   # React source 
-      │        ├─ main.jsx                            # Hydration entry (attach to mount) 
-      │        └─ Headlines.jsx                       # UI: filter/sort + REST fetch 
+      │        ├─ main.jsx                            # Client entry locates server rendered mount, hydrates React tree, and kicks off background fetch from REST API
+      │        └─ Headlines.jsx                       # UI Headlines component implementing filter/sort + REST fetch with minimal fields
       └─ assets/                                      # React Article Search Widget (build artifacts) 
          └─ headlines/                                # React Article Search Widget 
             └─ assets/                                # Vite output (hash may vary) 
                ├─ main-BH2fKHtS.js                    # Built JS bundle (example hash) 
                └─ main.css                            # Built CSS (if emitted) 
 
-.github/                                              # Theme Workflows 
-└─ workflows/                                         # Theme Workflows 
-   ├─ release-theme.yml                               # Build & Release artifact/ZIP + checksum 
-   ├─ ci-wordpress.yml                                # Docker WP+MySQL smoke tests (REST, archive, home) 
-   └─ deploy-sftp.yml                                 # Optional SFTP deploy to /wp-content theme path 
+.github/                                              # Theme CI/CD Workflows 
+└─ workflows/                                         # Theme CI/CD Workflows 
+   ├─ release-theme.yml                               # CI/CD Workflow for Build & Release of AI-News Theme Artifact ZIP + checksum 
+   ├─ smoke-tests-workflow.yml                        # CI/CD Workflow including Docker WP+MySQL Smoke Tests (REST, archive, home and AI component) 
+   └─ deploy-sftp.yml                                 # CI/CD Workflow for SFTP deploy / backup of theme path 
 
 wp-config.php                                         # AI News WP Theme + AI-Research Integration (API constants) 
 ```

@@ -12,7 +12,7 @@ add_action('wp_enqueue_scripts', function () {
 });
 
 
-// Enqueue built React bundle (after npm run build). main-BH2fKHtS.js
+// Enqueue built AI Widget React JS bundle (after npm run build). main-BH2fKHtS.js
 add_action('wp_enqueue_scripts', function () {
   $theme_uri  = get_template_directory_uri();
   $theme_path = get_template_directory();
@@ -26,7 +26,7 @@ add_action('wp_enqueue_scripts', function () {
     true
   );
 
-  // Enqueue CSS only if Vite emitted one
+  // Enqueue AI Widget React CSS only if Vite emitted one
   $css_rel  = '/assets/headlines/assets/main.css';
   $css_path = $theme_path . $css_rel;
   if (file_exists($css_path)) {
@@ -34,7 +34,7 @@ add_action('wp_enqueue_scripts', function () {
   }
 });
 
-// Shortcode to render the mount where you want.
+// Shortcode to render the AI Widget React mount where you want.
 add_shortcode('ai_headlines', function () {
   ob_start();
   get_template_part('template-parts/react-headlines');
@@ -42,6 +42,7 @@ add_shortcode('ai_headlines', function () {
 });
 
 
-// Snippet: append near the end of wp-content/themes/ai-news-hub/functions.php
+// Includes the AI automation module via require_once __DIR__ . '/inc/ai-research.php';,
+// which bootstraps the “AI Research” admin submenu, Ajax handler, and WP‑CLI command.
 require_once __DIR__ . '/inc/ai-research.php';
 
