@@ -1,5 +1,5 @@
 ### AI News Hub — Overview
-A WordPress demo that combines a REST‑enabled “Articles” CPT, a Vite‑built React Headlines widget, and an admin “AI Research” workflow that drafts Articles via an OpenAI‑compatible API; it includes GitHub Actions to build, test in Docker, and optionally deploy via SFTP.
+A WordPress demo that combines a REST‑enabled “Articles” Custom Post Type (CPT) a Vite‑built React Headlines widget, and an admin “AI Research” workflow that drafts Articles via an OpenAI‑compatible API; it includes GitHub Actions to build, test in Docker, and optionally deploy via SFTP.
 
 ### Architecture diagram
 ```
